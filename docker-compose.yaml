@@ -1,7 +1,7 @@
 version: '3'
 services:
   db:
-    image: mysql:5.6.39
+    image: bitnami/mysql:5.7
     networks:
       - voice-web
     container_name: db
@@ -11,6 +11,29 @@ services:
       - MYSQL_USER=voicecommons
       - MYSQL_PASSWORD=voicecommons
       - MYSQL_ROOT_PASSWORD=voicewebroot
+      - MYSQL_REPLICATION_MODE=master
+      - MYSQL_REPLICATION_USER=replication
+      - MYSQL_REPLICATION_PASSWORD=replication
+  db-replica:
+    image: bitnami/mysql:5.7
+    networks:
+      - voice-web
+    container_name: db-replica
+    restart: unless-stopped
+    environment:
+      - MYSQL_REPLICATION_MODE=slave
+      - MYSQL_REPLICATION_USER=replication
+      - MYSQL_REPLICATION_PASSWORD=replication
+      - MYSQL_MASTER_HOST=db
+      - MYSQL_MASTER_PORT_NUMBER=3306
+      - MYSQL_MASTER_ROOT_PASSWORD=voicewebroot
+  proxysql:
+    image: proxysql/proxysql
+    container_name: proxysql
+    networks:
+      - voice-web
+    volumes:
+      - ./docker/proxysql.cnf:/etc/proxysql.cnf
   s3proxy:
     image: andrewgaul/s3proxy
     container_name: s3proxy
@@ -24,7 +47,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: web
     links:
-      - db
+      - proxysql
     volumes:
       - .:/code
     environment:
