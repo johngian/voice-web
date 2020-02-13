@@ -5,8 +5,13 @@ declare global {
   }
 
   namespace Express {
+    export interface User {
+      emails?: any;
+      enrollment?: any;
+    }
     export interface Request {
       client_id?: string;
+      user?: User;
     }
   }
 }
