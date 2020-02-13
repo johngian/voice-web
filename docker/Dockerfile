@@ -1,4 +1,4 @@
-FROM node:10-stretch
+FROM node:lts
 
 ARG MAINTAINER="Philippe M. Chiasson <gozer@mozilla.com>"
 ARG BRANCH="master"
