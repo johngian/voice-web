@@ -1,10 +1,12 @@
 import * as fs from 'fs';
-import { S3 } from 'aws-sdk';
-import { config } from 'dotenv';
+import { S3, SSM } from 'aws-sdk';
+import { config, load } from 'dotenv';
 
 if (process.env.SERVER_CONFIG_PATH) {
   config({path: process.env.SERVER_CONFIG_PATH})
 }
+
+const AWS_DEPLOYMENTS = ['sandbox', 'dev', 'stage', 'prod']
 
 export type CommonVoiceConfig = {
   VERSION: string;
@@ -23,6 +25,7 @@ export type CommonVoiceConfig = {
   RELEASE_VERSION?: string;
   SECRET: string;
   S3_CONFIG: S3.Types.ClientConfiguration;
+  SSM_CONFIG: SSM.Types.ClientConfiguration;
   ADMIN_EMAILS: string;
   AUTH0: {
     DOMAIN: string;
@@ -66,6 +69,7 @@ const BASE_CONFIG: CommonVoiceConfig = {
     signatureVersion: 'v4',
     useDualstack: true,
   }, castJson),
+  SSM_CONFIG: configEntry('CV_SSM_CONFIG', {}, castJson),
   AUTH0: {
     DOMAIN: configEntry('CV_AUTH0_DOMAIN', ''),
     CLIENT_ID: configEntry('CV_AUTH0_CLIENT_ID', ''),
@@ -82,14 +86,54 @@ const BASE_CONFIG: CommonVoiceConfig = {
 
 let injectedConfig: CommonVoiceConfig;
 
+const ssm = new SSM(BASE_CONFIG.SSM_CONFIG);
+
+async function getSecret(key: string) {
+  const path = `/voice/${BASE_CONFIG.ENVIRONMENT}/${key}`
+  const params = {
+    Name: path,
+    WithDecryption: true
+  }
+  const secret = await ssm.getParameter(params).promise()
+
+  return secret.Parameter.Value
+}
+
+async function getSSMSecrets() {
+  return {
+    MYSQLPASS: getSecret('mysql-user-pw'),
+    DB_ROOT_PASS: getSecret('mysql-root-pw'),
+    MYSQLHOST: getSecret('mysql-host'),
+    SECRET: getSecret('app-secret'),
+    BASKET_API_KEY: getSecret('basket-api-key'),
+    AUTH0: {
+      DOMAIN: getSecret('auth0-domain'),
+      CLIENT_ID: getSecret('auth0-client-id'),
+      CLIENT_SECRET: getSecret('auth0-client-secret')
+    }
+  }
+}
+
 export function injectConfig(config: any) {
   injectedConfig = { ...BASE_CONFIG, ...config };
 }
+
+let loadedConfig: CommonVoiceConfig;
 
 export function getConfig(): CommonVoiceConfig {
   if (injectedConfig) {
     return injectedConfig;
   }
 
-  return BASE_CONFIG
+  if (loadedConfig) {
+    return loadedConfig
+  }
+
+  loadedConfig = BASE_CONFIG;
+
+  if (AWS_DEPLOYMENTS.includes(BASE_CONFIG.ENVIRONMENT)) {
+    loadedConfig = {...BASE_CONFIG, ...getSSMSecrets()}
+  }
+
+  return loadedConfig
 }
