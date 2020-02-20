@@ -99,19 +99,31 @@ async function getSecret(key: string) {
   return secret.Parameter.Value
 }
 
-async function getSSMSecrets() {
-  return {
-    MYSQLPASS: getSecret('mysql-user-pw'),
-    DB_ROOT_PASS: getSecret('mysql-root-pw'),
-    MYSQLHOST: getSecret('mysql-host'),
-    SECRET: getSecret('app-secret'),
-    BASKET_API_KEY: getSecret('basket-api-key'),
-    AUTH0: {
-      DOMAIN: getSecret('auth0-domain'),
-      CLIENT_ID: getSecret('auth0-client-id'),
-      CLIENT_SECRET: getSecret('auth0-client-secret')
+let loadedSecrets: Partial<CommonVoiceConfig>;
+
+export async function getSecrets(): Promise<Partial<CommonVoiceConfig>> {
+  debugger;
+  if (loadedSecrets) {
+    return loadedSecrets
+  }
+
+  loadedSecrets = {}
+
+  if (AWS_DEPLOYMENTS.includes(BASE_CONFIG.ENVIRONMENT)) {
+    loadedSecrets = {
+      MYSQLPASS: await getSecret('mysql-user-pw'),
+      DB_ROOT_PASS: await getSecret('mysql-root-pw'),
+      MYSQLHOST: await getSecret('mysql-host'),
+      SECRET: await getSecret('app-secret'),
+      BASKET_API_KEY: await getSecret('basket-api-key'),
+      AUTH0: {
+        DOMAIN: await getSecret('auth0-domain'),
+        CLIENT_ID: await getSecret('auth0-client-id'),
+        CLIENT_SECRET: await getSecret('auth0-client-secret')
+      }
     }
   }
+  return loadedSecrets;
 }
 
 export function injectConfig(config: any) {
@@ -121,6 +133,7 @@ export function injectConfig(config: any) {
 let loadedConfig: CommonVoiceConfig;
 
 export function getConfig(): CommonVoiceConfig {
+  debugger;
   if (injectedConfig) {
     return injectedConfig;
   }
@@ -129,11 +142,7 @@ export function getConfig(): CommonVoiceConfig {
     return loadedConfig
   }
 
-  loadedConfig = BASE_CONFIG;
-
-  if (AWS_DEPLOYMENTS.includes(BASE_CONFIG.ENVIRONMENT)) {
-    loadedConfig = {...BASE_CONFIG, ...getSSMSecrets()}
-  }
+  loadedConfig = {...BASE_CONFIG, ...loadedSecrets}
 
   return loadedConfig
 }

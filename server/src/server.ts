@@ -14,10 +14,10 @@ import {
 import { trackPageView } from './lib/analytics';
 import API from './lib/api';
 import Logger from './lib/logger';
-import { redis, redlock } from './lib/redis';
+import { getRedisClient, getRedlock } from './lib/redis';
 import { APIError, ClientError, getElapsedSeconds } from './lib/utility';
 import { importSentences } from './lib/model/db/import-sentences';
-import { getConfig } from './config-helper';
+import { getConfig, getSecrets } from './config-helper';
 import authRouter, { authMiddleware } from './auth-router';
 import fetchLegalDocument from './fetch-legal-document';
 import * as proxy from 'http-proxy-middleware';
@@ -332,7 +332,7 @@ export default class Server {
 
   async hasMigrated(): Promise<boolean> {
     this.print('checking migration status');
-    const result = await redis.get(MAINTENANCE_VERSION_KEY);
+    const result = await getRedisClient().get(MAINTENANCE_VERSION_KEY);
     const hasMigrated = result == this.version;
     if (hasMigrated) {
       this.print('maintenance already performed');
@@ -346,6 +346,10 @@ export default class Server {
   async run(options?: { doImport: boolean }): Promise<void> {
     options = { doImport: true, ...options };
     this.print('starting');
+
+    // Pre-load SSM secrets
+    debugger;
+    await getSecrets();
 
     await this.ensureDatabase();
 
@@ -363,7 +367,7 @@ export default class Server {
     }
 
     this.print('acquiring lock');
-    const lock = await redlock.lock(
+    const lock = await getRedlock().lock(
       'common-voice-maintenance-lock',
       1000 *
         60 *
@@ -379,7 +383,7 @@ export default class Server {
 
     try {
       await this.performMaintenance(options.doImport);
-      await redis.set(MAINTENANCE_VERSION_KEY, this.version);
+      await getRedisClient().set(MAINTENANCE_VERSION_KEY, this.version);
     } catch (e) {
       this.print('error during maintenance', e);
     }

@@ -1,4 +1,4 @@
-import { redis, redlock, useRedis } from './redis';
+import { getRedisClient, getRedlock, useRedis } from './redis';
 
 type Fn<T, S> = (...args: S[]) => Promise<T>;
 
@@ -45,6 +45,7 @@ function redisCache<T, S>(
 ): Fn<T, S> {
   return async (...args) => {
     const key = cacheKey + JSON.stringify(args);
+    const redis = getRedisClient();
     const result = await redis.get(key);
 
     let value: any;
@@ -58,6 +59,7 @@ function redisCache<T, S>(
     if (!renewCache) return value;
 
     return new Promise(async resolve => {
+      const redlock = getRedlock();
       const lock = await redlock.lock(
         key + '-lock',
         1000 *

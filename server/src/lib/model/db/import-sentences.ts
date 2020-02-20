@@ -4,7 +4,7 @@ import * as path from 'path';
 import { PassThrough } from 'stream';
 import promisify from '../../../promisify';
 import { hash } from '../../clip';
-import { redis, useRedis } from '../../redis';
+import { getRedisClient, useRedis } from '../../redis';
 
 const CWD = process.cwd();
 const SENTENCES_FOLDER = path.resolve(CWD, 'server/data/');
@@ -22,6 +22,7 @@ async function getFilesInFolder(path: string): Promise<string[]> {
 }
 
 const SENTENCES_PER_CHUNK = 500;
+const redis = getRedisClient();
 
 function streamSentences(localePath: string) {
   const stream = new PassThrough({ objectMode: true });
